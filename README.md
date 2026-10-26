@@ -41,6 +41,10 @@ npm start
 - **Describe a vibe:** GLM `glm-5.3-flash` writes a model-appropriate prompt using `reasoning_effort: "high"` and enabled thinking. You can review/edit it or generate immediately. Optional web search exposes a function tool to GLM; server-side calls use zAI's `web_search` endpoint with `search-prime`. Disabling search removes all tools and performs no searches. The loop preserves provider reasoning fields and is bounded to three searches.
 - **Write a prompt:** your exact text goes directly to Pixazo. Preset and direct modes never call zAI.
 
+In **Describe a vibe**, **Generate Me Random Prompt** asks `glm-5.3-flash` at **high** reasoning to write a fresh preset-style prompt in a randomly selected genre and court setting. It fills the editable text box and is ready for music generation immediately, without a second prompt-writing call. Each roll selects a different genre from the previous roll. **Refine this prompt** runs the existing writer if you want another pass, including optional web search.
+
+Beside **Track Name**, **AI Name** asks **`glm-5.3` at low reasoning** to suggest a name from the current music prompt or vibe description. It only fills the name field; it does not generate or regenerate audio. You can edit or replace the suggestion.
+
 ## Documented music controls
 
 Reviewed against the official documentation on October 23, 2026:
@@ -64,13 +68,14 @@ Official zAI references: [Flash model](https://docs.z.ai/guides/vlm/glm-5.3-flas
 - **Download** fetches the entire audio successfully before starting a browser file download. A failed fetch keeps the record. After a successful download handoff, the record leaves localStorage and remains visible in memory for the current session. The browser cannot confirm the final OS save dialog decision. Provider links can expire; download files you want to keep.
 - **Remake** sends the exact saved prompt and the same model/settings, independent of the current form. No second AI call. A fixed seed can reproduce similar/identical Stable Audio output.
 - **Remix** loads the saved model, every setting, prompt, prompt mode, title, AI description/search selection, preset, and webhook configuration for editing.
+- The pencil beside a song title in **Your Crate** opens an inline name editor. Save with the checkmark or Enter; cancel with the X or Escape. Names are limited to 100 characters and cannot be blank. Renaming updates the saved track record and the name used for downloads, remakes, and remixes. Downloaded tracks remain session-only after renaming.
 - Keys remain server-only. Job and download references are authenticated with HMAC signatures; download proxy requests accept only service-issued URLs on supported media hosts. Secrets are redacted from surfaced provider errors.
 
 There is no database, account system, lootbox economy, or automatic publication to your game. This is the requested soundtrack production tool; download completed audio for your game's asset pipeline.
 
 ## Verification
 
-The automated suite mocks paid provider calls and tests all three request contracts, prompt preservation, model limits, conditional lyrics, signed references, async completion, streamed downloads, inline audio, provider errors, localStorage filtering, GLM high reasoning, and both web-search paths. No paid generations are performed during tests. Live model generation requires your keys after deployment.
+The 18-test automated suite mocks paid provider calls and tests all three request contracts, prompt preservation, model limits, conditional lyrics, signed references, async completion, streamed downloads, inline audio, provider errors, localStorage filtering, GLM high reasoning, both web-search paths, random prompt generation, GLM 5.3 low-reasoning naming, title validation, same-origin handling behind a proxy, and new-action error handling. No paid generations are performed during tests. Live model generation requires your keys after deployment.
 
 ## Assets
 

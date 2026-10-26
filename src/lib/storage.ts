@@ -2,6 +2,7 @@ import type { ModelId, PromptMode, Settings } from './models';
 export type Song = {
   id: string; title: string; model: ModelId; prompt: string; settings: Settings;
   mode: PromptMode; presetId?: string; description?: string; webSearch?: boolean;
+  randomPrompt?: boolean; randomGenre?: string;
   webhookUrl?: string; webhookMode?: string;
   createdAt: string; status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'ERROR';
   ticket?: string; audioUrl?: string; downloadTicket?: string; mediaType?: string;

@@ -1,15 +1,10 @@
 import { isModel, validatePrompt } from '@/lib/models';
-import { ApiError, checkOrigin, errorResponse, promptInstructions, readBody, requireKey } from '@/lib/server';
+import { ApiError, checkOrigin, errorResponse, promptInstructions, readBody } from '@/lib/server';
+import { zai } from '@/lib/zai';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 type Message = { role: string; content?: string | null; tool_call_id?: string; tool_calls?: { id: string; type: string; function: { name: string; arguments: string | Record<string, unknown> } }[]; reasoning_content?: string };
 const searchTool = { type: 'function', function: { name: 'web_search', description: 'Research the instrumentation, rhythm, and musical conventions of a genre to write a specific tennis-game soundtrack prompt.', parameters: { type: 'object', properties: { query: { type: 'string', description: 'A concise musical genre research query.' } }, required: ['query'], additionalProperties: false } } };
-async function zai(path: string, body: unknown) {
-  const response = await fetch(`https://api.z.ai/api/paas/v4/${path}`, { method: 'POST', headers: { Authorization: `Bearer ${requireKey('ZAI_API_KEY')}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(90000), cache: 'no-store' });
-  const data = await response.json();
-  if (!response.ok) throw new ApiError(`zAI (${response.status}): ${data.error?.message || data.message || 'The prompt writer is unavailable.'}`, response.status >= 500 ? 502 : response.status);
-  return data;
-}
 export async function POST(request: Request) {
   try {
     checkOrigin(request);

@@ -13,7 +13,14 @@ export function errorResponse(error: unknown) {
 }
 export function checkOrigin(request: Request) {
   const origin = request.headers.get('origin');
-  if (origin && origin !== new URL(request.url).origin) throw new ApiError('Requests must come from this studio.', 403);
+  if (!origin) return;
+  const url = new URL(request.url);
+  const allowed = new Set([url.origin]);
+  // Next.js can reconstruct the internal URL as localhost behind a proxy.
+  // Host retains the authority the browser actually requested.
+  const host = request.headers.get('host');
+  if (host) { url.host = host; allowed.add(url.origin); }
+  if (!allowed.has(origin)) throw new ApiError('Requests must come from this studio.', 403);
 }
 export async function readBody(request: Request) {
   const body = await request.text();

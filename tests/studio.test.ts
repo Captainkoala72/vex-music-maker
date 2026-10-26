@@ -8,6 +8,10 @@ import { POST as generate } from '../src/app/api/generate/route';
 import { POST as promptWriter } from '../src/app/api/prompt/route';
 import { GET as status } from '../src/app/api/status/route';
 import { GET as download } from '../src/app/api/download/route';
+import { POST as randomPrompt } from '../src/app/api/random-prompt/route';
+import { POST as songName } from '../src/app/api/song-name/route';
+import { validateSongTitle } from '../src/lib/titles';
+import { checkOrigin } from '../src/lib/server';
 
 process.env.PIXAZO_API_KEY = 'test-pixazo-not-a-real-key';
 process.env.ZAI_API_KEY = 'test-zai-not-a-real-key';
@@ -120,4 +124,62 @@ test('cross-origin submissions and unsupported models fail before a provider cal
   const result = await generate(new Request('http://localhost/api/generate', { method: 'POST', headers: { origin: 'https://other.example' }, body: '{}' }));
   assert.equal(result.status, 403);
   assert.equal((await generate(req('generate', { model: 'not-real' }))).status, 400);
+});
+
+test('random prompts use GLM 5.3 Flash with high reasoning and a fresh genre, not a preset prompt', async () => {
+  try {
+    globalThis.fetch = async (url, init) => {
+      assert.ok(String(url).endsWith('/chat/completions'));
+      const body = JSON.parse(init!.body as string);
+      assert.equal(body.model, 'glm-5.3-flash'); assert.equal(body.reasoning_effort, 'high'); assert.equal(body.thinking.type, 'enabled'); assert.ok(!body.tools);
+      assert.ok(!body.messages[1].content.includes('genre: Japanese city pop.'));
+      assert.match(body.messages[0].content, /Max 984 characters/);
+      return Response.json({ choices: [{ message: { content: 'Instrumental Brazilian boogie for a tennis game at 114 BPM, with warm Rhodes, syncopated bass, soft percussion, and a loop-friendly ending. No vocals.' }, finish_reason: 'stop' }] });
+    };
+    const result = await randomPrompt(req('random-prompt', { model: 'mureka-instrumental', previousGenre: 'Japanese city pop' }));
+    const data = await result.json();
+    assert.equal(result.status, 200); assert.notEqual(data.genre, 'Japanese city pop'); assert.equal(data.reasoningEffort, 'high'); assert.match(data.prompt, /Brazilian boogie/);
+  } finally { globalThis.fetch = realFetch; }
+});
+test('song names use GLM 5.3 at low reasoning with the actual music prompt and no music generation', async () => {
+  let calls = 0;
+  try {
+    globalThis.fetch = async (url, init) => {
+      calls++; assert.ok(String(url).startsWith('https://api.z.ai/'));
+      const body = JSON.parse(init!.body as string);
+      assert.equal(body.model, 'glm-5.3'); assert.equal(body.reasoning_effort, 'low'); assert.equal(body.thinking.type, 'enabled'); assert.ok(!body.tools);
+      assert.equal(body.messages[1].content, PRESETS[9].prompt);
+      return Response.json({ choices: [{ message: { content: '“Snowlight Rally”' }, finish_reason: 'stop' }] });
+    };
+    const result = await songName(req('song-name', { prompt: PRESETS[9].prompt }));
+    assert.equal(result.status, 200); assert.deepEqual(await result.json(), { title: 'Snowlight Rally', model: 'glm-5.3', reasoningEffort: 'low' }); assert.equal(calls, 1);
+  } finally { globalThis.fetch = realFetch; }
+});
+test('song names trim whitespace and reject empty, oversized, or multiline names', () => {
+  assert.equal(validateSongTitle('  Afterglow Rally  '), 'Afterglow Rally');
+  for (const value of ['', '   ', 'x'.repeat(101), 'Two\nLines', null]) assert.throws(() => validateSongTitle(value));
+});
+test('new AI actions validate inputs and reject cross-origin requests before calling providers', async () => {
+  try {
+    globalThis.fetch = async () => { throw new Error('Provider must not be called.'); };
+    assert.equal((await songName(req('song-name', { prompt: '' }))).status, 400);
+    assert.equal((await randomPrompt(req('random-prompt', { model: 'unknown' }))).status, 400);
+    for (const handler of [songName, randomPrompt]) assert.equal((await handler(new Request('http://localhost/api/test', { method: 'POST', headers: { origin: 'https://other.example' }, body: '{}' }))).status, 403);
+  } finally { globalThis.fetch = realFetch; }
+});
+test('same-origin validation respects the browser-facing Host when Next.js uses an internal URL', () => {
+  assert.doesNotThrow(() => checkOrigin(new Request('http://localhost:3003/api/song-name', { headers: { host: '127.0.0.1:3003', origin: 'http://127.0.0.1:3003' } })));
+  assert.throws(() => checkOrigin(new Request('https://internal.example/api/song-name', { headers: { host: 'studio.example', origin: 'https://other.example' } })));
+});
+test('AI naming and random prompts surface missing-key and truncated-output errors', async () => {
+  const key = process.env.ZAI_API_KEY;
+  try {
+    delete process.env.ZAI_API_KEY;
+    assert.equal((await songName(req('song-name', { prompt: 'Jazz funk' }))).status, 503);
+    assert.equal((await randomPrompt(req('random-prompt', { model: MODEL_IDS[0] }))).status, 503);
+    process.env.ZAI_API_KEY = key;
+    globalThis.fetch = async () => Response.json({ choices: [{ message: { content: 'Truncated' }, finish_reason: 'length' }] });
+    assert.equal((await songName(req('song-name', { prompt: 'Jazz funk' }))).status, 502);
+    assert.equal((await randomPrompt(req('random-prompt', { model: MODEL_IDS[0] }))).status, 502);
+  } finally { process.env.ZAI_API_KEY = key; globalThis.fetch = realFetch; }
 });
